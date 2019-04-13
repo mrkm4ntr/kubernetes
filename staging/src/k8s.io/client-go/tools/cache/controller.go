@@ -17,7 +17,6 @@ limitations under the License.
 package cache
 
 import (
-	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,10 +72,9 @@ type ProcessFunc func(obj interface{}) error
 
 // Controller is a generic controller framework.
 type controller struct {
-	config         Config
-	reflector      *Reflector
-	reflectorMutex sync.RWMutex
-	clock          clock.Clock
+	config    Config
+	reflector *Reflector
+	clock     clock.Clock
 }
 
 type Controller interface {
@@ -112,9 +110,7 @@ func (c *controller) Run(stopCh <-chan struct{}) {
 	r.ShouldResync = c.config.ShouldResync
 	r.clock = c.clock
 
-	c.reflectorMutex.Lock()
 	c.reflector = r
-	c.reflectorMutex.Unlock()
 
 	var wg wait.Group
 	defer wg.Wait()
