@@ -385,10 +385,10 @@ type Framework interface {
 	// RunReservePlugins runs the set of configured reserve plugins. If any of these
 	// plugins returns an error, it does not continue running the remaining ones and
 	// returns the error. In such case, pod will not be scheduled.
-	RunReservePlugins(pc *PluginContext, pod *v1.Pod, nodeName string) *Status
+	RunReservePlugins(pc *PluginContext, pod *v1.Pod, nodeName string) ([]string, *Status)
 
 	// RunUnreservePlugins runs the set of configured unreserve plugins.
-	RunUnreservePlugins(pc *PluginContext, pod *v1.Pod, nodeName string)
+	RunUnreservePlugins(pc *PluginContext, pod *v1.Pod, nodeName string, plugins []string)
 
 	// RunPermitPlugins runs the set of configured permit plugins. If any of these
 	// plugins returns a status other than "Success" or "Wait", it does not continue

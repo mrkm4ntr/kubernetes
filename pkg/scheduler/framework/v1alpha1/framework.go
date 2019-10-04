@@ -49,7 +49,7 @@ type framework struct {
 	preBindPlugins        []PreBindPlugin
 	bindPlugins           []BindPlugin
 	postBindPlugins       []PostBindPlugin
-	unreservePlugins      []UnreservePlugin
+	unreservePlugins      map[string]UnreservePlugin
 	permitPlugins         []PermitPlugin
 }
 
@@ -135,8 +135,13 @@ func NewFramework(r Registry, plugins *config.Plugins, args []config.PluginConfi
 		return nil, err
 	}
 
-	if err := updatePluginList(reflect.ValueOf(&f.unreservePlugins), plugins.Unreserve, reflect.TypeOf((*UnreservePlugin)(nil)), pluginsMap); err != nil {
+	unreservePlugins := []UnreservePlugin{}
+	if err := updatePluginList(reflect.ValueOf(&unreservePlugins), plugins.Unreserve, reflect.TypeOf((*UnreservePlugin)(nil)), pluginsMap); err != nil {
 		return nil, err
+	}
+	f.unreservePlugins = map[string]UnreservePlugin{}
+	for _, pl := range unreservePlugins {
+		f.unreservePlugins[pl.Name()] = pl
 	}
 
 	if err := updatePluginList(reflect.ValueOf(&f.permitPlugins), plugins.Permit, reflect.TypeOf((*PermitPlugin)(nil)), pluginsMap); err != nil {
@@ -433,23 +438,25 @@ func (f *framework) RunPostBindPlugins(
 // plugins returns an error, it does not continue running the remaining ones and
 // returns the error. In such case, pod will not be scheduled.
 func (f *framework) RunReservePlugins(
-	pc *PluginContext, pod *v1.Pod, nodeName string) *Status {
+	pc *PluginContext, pod *v1.Pod, nodeName string) ([]string, *Status) {
+	succeeded := []string{}
 	for _, pl := range f.reservePlugins {
 		status := pl.Reserve(pc, pod, nodeName)
 		if !status.IsSuccess() {
 			msg := fmt.Sprintf("error while running %q reserve plugin for pod %q: %v", pl.Name(), pod.Name, status.Message())
 			klog.Error(msg)
-			return NewStatus(Error, msg)
+			return succeeded, NewStatus(Error, msg)
 		}
+		succeeded = append(succeeded, pl.Name())
 	}
-	return nil
+	return succeeded, nil
 }
 
 // RunUnreservePlugins runs the set of configured unreserve plugins.
 func (f *framework) RunUnreservePlugins(
-	pc *PluginContext, pod *v1.Pod, nodeName string) {
-	for _, pl := range f.unreservePlugins {
-		pl.Unreserve(pc, pod, nodeName)
+	pc *PluginContext, pod *v1.Pod, nodeName string, plugins []string) {
+	for _, name := range plugins {
+		f.unreservePlugins[name].Unreserve(pc, pod, nodeName)
 	}
 }
 

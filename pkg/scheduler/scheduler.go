@@ -630,9 +630,11 @@ func (sched *Scheduler) scheduleOne() {
 	}
 
 	// Run "reserve" plugins.
-	if sts := fwk.RunReservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost); !sts.IsSuccess() {
+	reservedPlugins, sts := fwk.RunReservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost)
+	if !sts.IsSuccess() {
 		sched.recordSchedulingFailure(assumedPod, sts.AsError(), SchedulerError, sts.Message())
 		metrics.PodScheduleErrors.Inc()
+		fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost, reservedPlugins)
 		return
 	}
 
@@ -642,7 +644,7 @@ func (sched *Scheduler) scheduleOne() {
 		klog.Errorf("error assuming pod: %v", err)
 		metrics.PodScheduleErrors.Inc()
 		// trigger un-reserve plugins to clean up state associated with the reserved Pod
-		fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost)
+		fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost, reservedPlugins)
 		return
 	}
 	// bind the pod to its host asynchronously (we can do this b/c of the assumption step above).
@@ -654,7 +656,7 @@ func (sched *Scheduler) scheduleOne() {
 				klog.Errorf("error binding volumes: %v", err)
 				metrics.PodScheduleErrors.Inc()
 				// trigger un-reserve plugins to clean up state associated with the reserved Pod
-				fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost)
+				fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost, reservedPlugins)
 				return
 			}
 		}
@@ -674,7 +676,7 @@ func (sched *Scheduler) scheduleOne() {
 				klog.Errorf("scheduler cache ForgetPod failed: %v", forgetErr)
 			}
 			// trigger un-reserve plugins to clean up state associated with the reserved Pod
-			fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost)
+			fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost, reservedPlugins)
 			sched.recordSchedulingFailure(assumedPod, permitStatus.AsError(), reason, permitStatus.Message())
 			return
 		}
@@ -689,7 +691,7 @@ func (sched *Scheduler) scheduleOne() {
 				klog.Errorf("scheduler cache ForgetPod failed: %v", forgetErr)
 			}
 			// trigger un-reserve plugins to clean up state associated with the reserved Pod
-			fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost)
+			fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost, reservedPlugins)
 			sched.recordSchedulingFailure(assumedPod, preBindStatus.AsError(), reason, preBindStatus.Message())
 			return
 		}
@@ -701,7 +703,7 @@ func (sched *Scheduler) scheduleOne() {
 			klog.Errorf("error binding pod: %v", err)
 			metrics.PodScheduleErrors.Inc()
 			// trigger un-reserve plugins to clean up state associated with the reserved Pod
-			fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost)
+			fwk.RunUnreservePlugins(pluginContext, assumedPod, scheduleResult.SuggestedHost, reservedPlugins)
 			sched.recordSchedulingFailure(assumedPod, err, SchedulerError, fmt.Sprintf("Binding rejected: %v", err))
 		} else {
 			// Calculating nodeResourceString can be heavy. Avoid it if klog verbosity is below 2.
